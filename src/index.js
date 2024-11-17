@@ -4,7 +4,7 @@ const APP_ID = "YanYueJi"
 const CONTAINER_ID = APP_ID + "-container"
 const CHAR_CLASS = APP_ID + "-char"
 
-const autoMode = true
+const autoMode = false
 
 let lastAlarm = 0
 
@@ -37,13 +37,13 @@ function alarm(text) {
 }
 
 function toPinyin(text) {
-    return pinyin(text, {style: pinyin.STYLE_TONE}).map(arr => arr[0]).flatMap(textPinyin => {
+    return text.split("").flatMap(char => pinyin(char, {style: pinyin.STYLE_TONE}).map(arr => arr[0]).flatMap(textPinyin => {
         // （+15）会被pinyin返回为`（`和`+15）`
         if (!/[a-z]+/.test(textPinyin)) {
             return textPinyin.split("")
         }
         return [textPinyin]
-    })
+    }))
 }
 
 function uniqueRows(array) {
