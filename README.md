@@ -11,4 +11,4 @@ Steam 好评率98%，全球首款「寻找对话中敏感词」的游戏《ウ�
 ![手动版使用示例](./doc/readme.gif)
 
 # 外部依赖：
-敏感词库：https://github.com/pennyliang/ciku
+敏感词库：https://github.com/57ing/Sensitive-word/blob/master/%E8%89%B2%E6%83%85%E8%AF%8D%E5%BA%93.txt
