@@ -1,10 +1,13 @@
 import pinyin from "pinyin";
 
 const APP_ID = "YanYueJi"
-const CONTAINER_ID = APP_ID+"-container"
-const CHAR_CLASS = APP_ID+"-char"
+const CONTAINER_ID = APP_ID + "-container"
+const CHAR_CLASS = APP_ID + "-char"
+
+const autoMode = false
 
 let lastAlarm = 0
+
 /**
  *
  * @param {string[]} text
@@ -15,10 +18,10 @@ function alarm(text) {
     container.innerHTML = ''; // 清空容器内容
 
     let delay = 0
-    text.forEach(entry=>{
+    text.forEach(entry => {
         const p = document.createElement('p');
         container.appendChild(p);
-        entry.split('').forEach((char, index) => {
+        entry.split('').forEach((char) => {
             delay += 0.1
             const span = document.createElement('span');
             span.textContent = char;
@@ -28,10 +31,19 @@ function alarm(text) {
         })
     })
 
-    lastAlarm = setTimeout(()=>{container.innerHTML = ''},1000*(delay+3))
+    lastAlarm = setTimeout(() => {
+        container.innerHTML = ''
+    }, 1000 * (delay + 3))
 }
+
 function toPinyin(text) {
-    return pinyin(text, {style: pinyin.STYLE_NORMAL}).map(arr => arr[0])
+    return pinyin(text, {style: pinyin.STYLE_TONE}).map(arr => arr[0]).flatMap(textPinyin => {
+        // （+15）会被pinyin返回为`（`和`+15）`
+        if (!/[a-z]+/.test(textPinyin)) {
+            return textPinyin.split("")
+        }
+        return [textPinyin]
+    })
 }
 
 function uniqueRows(array) {
@@ -49,7 +61,7 @@ function uniqueRows(array) {
 
 /**
  *
- * @returns {Promise<string[][]>}
+ * @returns {Promise<{pinyin:string[],text:string}[]>}
  */
 async function getAllSensitiveWords() {
     // return [
@@ -62,22 +74,25 @@ async function getAllSensitiveWords() {
     //     ["she", "jing"],
     // ]
 
-    const request = new Request("https://raw.githubusercontent.com/pennyliang/ciku/main/%E8%89%B2%E6%83%85%E8%AF%8D%E5%BA%93",)
+    const request = new Request("https://raw.githubusercontent.com/57ing/Sensitive-word/master/%E8%89%B2%E6%83%85%E8%AF%8D%E5%BA%93.txt",)
 
-    const decoder = new TextDecoder('utf8');
+    const decoder = new TextDecoder('gbk');
 
-    /** @type{string[][]} **/
+    /** @type{{pinyin: *, world: *}[]} **/
     let res = await fetch(request)
         .then((response) => response.arrayBuffer())
-        .then((buffer) => decoder.decode(buffer).split("\n").map(line => line.split("\t")[0]))
-    res = res.map(item => toPinyin(item))
-    res = res.filter(item => item.length > 1)
+        .then((buffer) => decoder.decode(buffer).split("\n"))
+    res = res.map(item => {
+        return {pinyin: toPinyin(item), text: item}
+    })
+    res = res.filter(item => item.pinyin.length > 1)
     return uniqueRows(res)
 
 }
 
 
 const chineseReg = new RegExp("[\\u4E00-\\u9FFF]+");
+
 function getAllSusLeafNodesWIthText() {
     return [...document.querySelectorAll("body *:not(script):not(style)")].filter(item => !item.children.length && item.innerText && chineseReg.test(item.innerText))
 }
@@ -85,13 +100,13 @@ function getAllSusLeafNodesWIthText() {
 /**
  *
  * @param {string[]} text
- * @param {string[]} sensitiveWord
- * @returns {{pos:[number,number],world:string[]}[]}
+ * @param {{pinyin:string[],text:string}} sensitiveWord
+ * @returns {{pos:[number,number],world:{pinyin:string[],text:string}}[]}
  */
 function findSensitiveWordPositions(text, sensitiveWord) {
-    /** @type{{pos:[number,number],world:string[]}[]} **/
+    /** @type{{pos:[number,number],world:{pinyin:string[],text:string}}[]} **/
     const positions = [];
-    const sensitiveLength = sensitiveWord.length;
+    const sensitiveLength = sensitiveWord.pinyin.length;
 
     for (let i = 0; i <= text.length - sensitiveLength; i++) {
         let nonPinyinCount = 0
@@ -99,13 +114,13 @@ function findSensitiveWordPositions(text, sensitiveWord) {
         while (j < sensitiveLength) {
             const textPinyin = text[i + j + nonPinyinCount]
             if (!/[a-z]+/.test(textPinyin)) {
-                if(j===0){
+                if (j === 0) {
                     break
                 }
                 nonPinyinCount++
                 continue
             }
-            if (textPinyin !== sensitiveWord[j]) {
+            if (textPinyin !== sensitiveWord.pinyin[j]) {
                 break
             }
             j++
@@ -122,17 +137,15 @@ function findSensitiveWordPositions(text, sensitiveWord) {
 }
 
 
-
-
 /**\
  * @param {Element} element - 要处理的DOM元素。
- * @param {string[][]} sensitiveWords - 需要被替换的字符串数组。
+ * @param {{pinyin:string[],text:string}[]} sensitiveWords - 需要被替换的字符串数组。
  * @param autoMode
  */
-function susTextClickHandler(element, sensitiveWords,autoMode=false) {
+function susTextClickHandler(element, sensitiveWords, autoMode = false) {
     let position = window.getSelection().focusOffset;
 
-    if(element.childElementCount>0){
+    if (element.childElementCount > 0) {
         return;
     }
 
@@ -144,36 +157,39 @@ function susTextClickHandler(element, sensitiveWords,autoMode=false) {
 
 
     const findRes = sensitiveWords.flatMap(sensitiveWord => findSensitiveWordPositions(text, sensitiveWord))
+    if (findRes.length === 0) {
+        return;
+    }
     console.log(findRes)
 
-    /** @type{{pos:[number,number],world:string[]}[]} **/
+    /** @type{{pos:[number,number],world:{pinyin:string[],text:string}}[]} **/
     const matchedWithClick = []
-    findRes.forEach(({pos,world}) => {
-        if(!autoMode){
-            if(position<pos[0]||position>pos[1]){
+    findRes.forEach(({pos, world}) => {
+        if (!autoMode) {
+            if (position < pos[0] || position > pos[1]) {
                 return
             }
         }
-        matchedWithClick.push({pos,world})
+        matchedWithClick.push({pos, world})
     })
 
-    if(matchedWithClick.length===0){
+    if (matchedWithClick.length === 0) {
         return
     }
 
-    if(autoMode){
-        matchedWithClick.splice(1,matchedWithClick.length-1)
+    if (autoMode) {
+        matchedWithClick.splice(1, matchedWithClick.length - 1)
     }
 
     // 创建一个文档片段，用于构建新的节点结构
     const fragment = document.createDocumentFragment();
-    const matchedRange = [Math.min(...matchedWithClick.map(item=>item.pos[0])),Math.max(...matchedWithClick.map(item=>item.pos[1]))]
+    const matchedRange = [Math.min(...matchedWithClick.map(item => item.pos[0])), Math.max(...matchedWithClick.map(item => item.pos[1]))]
 
     fragment.appendChild(document.createTextNode(rawText.slice(0, matchedRange[0])));
 
     let newNode = document.createElement('span');
     newNode.textContent = rawText.slice(matchedRange[0], matchedRange[1])
-    newNode.style.color="red"
+    newNode.style.color = "red"
     fragment.appendChild(newNode);
 
     fragment.appendChild(document.createTextNode(rawText.slice(matchedRange[1])));
@@ -184,12 +200,11 @@ function susTextClickHandler(element, sensitiveWords,autoMode=false) {
     }
     element.appendChild(fragment);
 
-    if(!autoMode){
-        alarm(matchedWithClick.map(entry=>entry.world.join("").toUpperCase()))
+    if (!autoMode) {
+        alarm(matchedWithClick.map(entry => entry.world.pinyin.join("").toUpperCase()))
     }
 }
 
-const autoMode = true
 async function main() {
     const sensitiveWords = await getAllSensitiveWords();
 
@@ -197,13 +212,13 @@ async function main() {
     container.id = CONTAINER_ID;
     document.body.appendChild(container);
 
-    // alert("言阅姬已上线")
+    alert("言阅姬已上线")
     getAllSusLeafNodesWIthText().forEach((ele) => {
-        if(autoMode){
-            susTextClickHandler(ele, sensitiveWords,true)
+        if (autoMode) {
+            susTextClickHandler(ele, sensitiveWords, true)
         }
 
-        ele.addEventListener("click", _=>susTextClickHandler(ele, sensitiveWords));
+        ele.addEventListener("click", _ => susTextClickHandler(ele, sensitiveWords));
     })
 }
 
@@ -212,7 +227,7 @@ main().then()
 
 const styles = `
 #${CONTAINER_ID} {
-    position: absolute;
+    position: fixed;
     top: 20%;
     transform: translateX(-50%);
     left: 50%;
