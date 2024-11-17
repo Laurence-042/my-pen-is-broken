@@ -4,7 +4,7 @@ const APP_ID = "YanYueJi"
 const CONTAINER_ID = APP_ID + "-container"
 const CHAR_CLASS = APP_ID + "-char"
 
-const autoMode = false
+const autoMode = true
 
 let lastAlarm = 0
 
