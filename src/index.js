@@ -1,237 +1,360 @@
-import pinyin from "pinyin";
+import pinyin from 'pinyin'
 
-const APP_ID = "YanYueJi"
-const CONTAINER_ID = APP_ID + "-container"
-const CHAR_CLASS = APP_ID + "-char"
+// 立即执行函数，防止重复运行
+;(function () {
+  const APP_ID = 'YanYueJi'
+  const CONTAINER_ID = APP_ID + '-container'
+  const CHAR_CLASS = APP_ID + '-char'
 
-const autoMode = false
+  // 这个值会在构建时被替换
+  const autoMode = true
 
-let lastAlarm = 0
+  let lastAlarm = 0
 
-/**
- *
- * @param {string[]} text
- */
-function alarm(text) {
+  /**
+   *
+   * @param {string[]} text
+   */
+  function alarm(text) {
     clearTimeout(lastAlarm)
-    const container = document.getElementById(CONTAINER_ID);
-    container.innerHTML = ''; // 清空容器内容
+    const container = document.getElementById(CONTAINER_ID)
+    if (!container) return
+
+    container.innerHTML = '' // 清空容器内容
 
     let delay = 0
-    text.forEach(entry => {
-        const p = document.createElement('p');
-        container.appendChild(p);
-        entry.split('').forEach((char) => {
-            delay += 0.1
-            const span = document.createElement('span');
-            span.textContent = char;
-            span.classList.add(CHAR_CLASS);
-            span.style.animationDelay = `${delay}s`;
-            p.appendChild(span);
-        })
+    text.forEach((entry) => {
+      const p = document.createElement('p')
+      container.appendChild(p)
+      entry.split('').forEach((char) => {
+        delay += 0.1
+        const span = document.createElement('span')
+        span.textContent = char
+        span.classList.add(CHAR_CLASS)
+        span.style.animationDelay = `${delay}s`
+        p.appendChild(span)
+      })
     })
 
     lastAlarm = setTimeout(() => {
+      if (container) {
         container.innerHTML = ''
+      }
     }, 1000 * (delay + 3))
-}
+  }
 
-function toPinyin(text) {
-    return text.split("").flatMap(char => pinyin(char, {style: pinyin.STYLE_TONE}).map(arr => arr[0]).flatMap(textPinyin => {
-        // （+15）会被pinyin返回为`（`和`+15）`
-        if (!/[a-z]+/.test(textPinyin)) {
-            return textPinyin.split("")
-        }
-        return [textPinyin]
-    }))
-}
+  function withPinyin(text) {
+    let pinYinWithTone = text.split('').flatMap((char) =>
+      pinyin(char, { style: pinyin.STYLE_TONE })
+        .map((arr) => arr[0])
+        .flatMap((textPinyin) => {
+          // （+15）会被pinyin返回为`（`和`+15）`
+          if (!/[a-z]+/.test(textPinyin)) {
+            return textPinyin.split('')
+          }
+          return [textPinyin]
+        }),
+    )
 
-function uniqueRows(array) {
-    const seen = new Set();
-    return array.filter(row => {
-        const rowString = JSON.stringify(row);
-        if (seen.has(rowString)) {
-            return false;
-        } else {
-            seen.add(rowString);
-            return true;
-        }
-    });
-}
+    let pinYinWithoutTone = text.split('').flatMap((char) =>
+      pinyin(char, { style: pinyin.STYLE_NORMAL })
+        .map((arr) => arr[0])
+        .flatMap((textPinyin) => {
+          // （+15）会被pinyin返回为`（`和`+15）`
+          if (!/[a-z]+/.test(textPinyin)) {
+            return textPinyin.split('')
+          }
+          return [textPinyin]
+        }),
+    )
 
-/**
- *
- * @returns {Promise<{pinyin:string[],text:string}[]>}
- */
-async function getAllSensitiveWords() {
-    // return [
-    //     ["cao", "bi"],
-    //     ["ji", "ke"],
-    //     ["xing", "jiao"],
-    //     ["si", "chu"],
-    //     ["quan", "jiao"],
-    //     ["yan", "she"],
-    //     ["she", "jing"],
-    // ]
 
-    const request = new Request("https://raw.githubusercontent.com/57ing/Sensitive-word/master/%E8%89%B2%E6%83%85%E8%AF%8D%E5%BA%93.txt",)
+    return {
+        pinYinWithTone: pinYinWithTone,
+        pinYinWithoutTone: pinYinWithoutTone,
+        text: text
+    }
+  }
 
-    const decoder = new TextDecoder('gbk');
-
-    /** @type{{pinyin: *, world: *}[]} **/
-    let res = await fetch(request)
-        .then((response) => response.arrayBuffer())
-        .then((buffer) => decoder.decode(buffer).split("\n"))
-    res = res.map(item => {
-        return {pinyin: toPinyin(item), text: item}
+  function uniqueRows(array) {
+    const seen = new Set()
+    return array.filter((row) => {
+      const rowString = JSON.stringify(row)
+      if (seen.has(rowString)) {
+        return false
+      } else {
+        seen.add(rowString)
+        return true
+      }
     })
-    res = res.filter(item => item.pinyin.length > 1)
+  }
+
+  /**
+   *
+   * @returns {Promise<{pinyin:string[],text:string}[]>}
+   */
+  async function getAllSensitiveWords() {
+    const request = new Request(
+      'https://raw.githubusercontent.com/57ing/Sensitive-word/master/%E8%89%B2%E6%83%85%E8%AF%8D%E5%BA%93.txt',
+    )
+    const decoder = new TextDecoder('gbk')
+
+    let res = await fetch(request)
+      .then((response) => {
+        if (!response.ok) throw new Error('Network response was not ok')
+        return response.arrayBuffer()
+      })
+      .then((buffer) => decoder.decode(buffer).split('\n'))
+      .catch((error) => {
+        console.warn(
+          'Failed to fetch sensitive words from remote, using fallback list:',
+          error,
+        )
+        // 提供一个简单的后备列表
+        return ['测试', '示例', '敏感词']
+      })
+
+    res = res.map((item) => {
+      return withPinyin(item.trim())
+    })
+    res = res.filter((item) => item.text && item.pinYinWithoutTone.length > 1)
     return uniqueRows(res)
+  }
 
-}
+  const chineseReg = new RegExp('[\\u4E00-\\u9FFF]+')
 
+  function getAllSusLeafNodesWithText() {
+    return [
+      ...document.querySelectorAll('body *:not(script):not(style)'),
+    ].filter(
+      (item) =>
+        !item.children.length &&
+        item.innerText &&
+        chineseReg.test(item.innerText),
+    )
+  }
 
-const chineseReg = new RegExp("[\\u4E00-\\u9FFF]+");
+  /**
+   *
+   * @param {withPinyin:{withTone:string[],withoutTone:string[],text:string}} textWithPinYin
+   * @param {withPinyin:{withTone:string[],withoutTone:string[],text:string}} sensitiveWord
+   * @param {string} rawText
+   * @returns {{pos:[number,number],world:string,sensitiveWord:{pinyin:string[],text:string}}[]}
+   */
+  function findSensitiveWordPositions(textWithPinYin, sensitiveWord, rawText) {
+    /** @type{{pos:[number,number],world:string,sensitiveWord:{pinyin:string[],text:string}}[]} **/
+    const positions = []
+    const sensitiveLength = sensitiveWord.pinYinWithoutTone.length
 
-function getAllSusLeafNodesWIthText() {
-    return [...document.querySelectorAll("body *:not(script):not(style)")].filter(item => !item.children.length && item.innerText && chineseReg.test(item.innerText))
-}
-
-/**
- *
- * @param {string[]} text
- * @param {{pinyin:string[],text:string}} sensitiveWord
- * @returns {{pos:[number,number],world:{pinyin:string[],text:string}}[]}
- */
-function findSensitiveWordPositions(text, sensitiveWord) {
-    /** @type{{pos:[number,number],world:{pinyin:string[],text:string}}[]} **/
-    const positions = [];
-    const sensitiveLength = sensitiveWord.pinyin.length;
-
-    for (let i = 0; i <= text.length - sensitiveLength; i++) {
-        let nonPinyinCount = 0
-        let j = 0;
-        while (j < sensitiveLength) {
-            const textPinyin = text[i + j + nonPinyinCount]
-            if (!/[a-z]+/.test(textPinyin)) {
-                if (j === 0) {
-                    break
-                }
-                nonPinyinCount++
-                continue
-            }
-            if (textPinyin !== sensitiveWord.pinyin[j]) {
-                break
-            }
-            j++
+    for (let i = 0; i <= textWithPinYin.pinYinWithoutTone.length - sensitiveLength; i++) {
+      let nonPinyinCount = 0
+      let j = 0
+      while (j < sensitiveLength) {
+        const textPinyin = textWithPinYin.pinYinWithoutTone[i + j + nonPinyinCount]
+        if (!/[a-z]+/.test(textPinyin)) {
+          // 第一个字符就是拼音，用户点歪了，跳过
+          if (j === 0) {
+            break
+          }
+          nonPinyinCount++
+          continue
         }
-        if (j === sensitiveLength) {
-            positions.push({
-                pos: [i, i + sensitiveLength + nonPinyinCount],
-                world: sensitiveWord
-            });
+        if (textPinyin !== sensitiveWord.pinYinWithoutTone[j]) {
+            if(sensitiveWord.text==="操逼"){
+            console.log('mismatch', {
+                textPinyin,
+                sensitivePinyin: sensitiveWord.pinYinWithoutTone[j],
+                indexInText: i + j + nonPinyinCount,
+                sensitiveIndex: j,
+            })
+            }
+          break
         }
+        j++
+      }
+      if (j === sensitiveLength) {
+        positions.push({
+          pos: [i, i + sensitiveLength + nonPinyinCount],
+          sensitiveWord: sensitiveWord,
+          world: rawText.slice(i, i + sensitiveLength + nonPinyinCount),
+        })
+      }
     }
 
-    return positions;
-}
+    return positions
+  }
 
-
-/**\
- * @param {Element} element - 要处理的DOM元素。
- * @param {{pinyin:string[],text:string}[]} sensitiveWords - 需要被替换的字符串数组。
- * @param autoMode
- */
-function susTextClickHandler(element, sensitiveWords, autoMode = false) {
-    let position = window.getSelection().focusOffset;
-
+  /**
+   * @param {Element} element - 要处理的DOM元素。
+   * @param {{pinyin:string[],text:string}[]} sensitiveWords - 需要被替换的字符串数组。
+   * @param autoMode
+   */
+  function susTextClickHandler(
+    element,
+    sensitiveWords,
+    autoMode = false,
+    statisticsOnly = false,
+  ) {
     if (element.childElementCount > 0) {
-        return;
+      return
     }
 
     // 获取元素的文本内容
     const rawText = element.textContent
 
     /** @type{string[]} **/
-    const text = toPinyin(rawText);
+    const textWithPinYin = withPinyin(rawText)
 
-
-    const findRes = sensitiveWords.flatMap(sensitiveWord => findSensitiveWordPositions(text, sensitiveWord))
+    const findRes = sensitiveWords.flatMap((sensitiveWord) =>
+      findSensitiveWordPositions(textWithPinYin, sensitiveWord, rawText),
+    )
     if (findRes.length === 0) {
-        return;
+      return
     }
-    console.log(findRes)
+
+    if(!autoMode && statisticsOnly){
+        return findRes.length
+    }
+
+    let position = window.getSelection().focusOffset
 
     /** @type{{pos:[number,number],world:{pinyin:string[],text:string}}[]} **/
     const matchedWithClick = []
-    findRes.forEach(({pos, world}) => {
-        if (!autoMode) {
-            if (position < pos[0] || position > pos[1]) {
-                return
-            }
+    findRes.forEach(({ pos, sensitiveWord, world }) => {
+      if (!autoMode) {
+        if (position < pos[0] || position > pos[1]) {
+          return
         }
-        matchedWithClick.push({pos, world})
+      }
+      matchedWithClick.push({ pos, sensitiveWord, world })
     })
 
     if (matchedWithClick.length === 0) {
-        return
+      return
     }
 
     if (autoMode) {
-        matchedWithClick.splice(1, matchedWithClick.length - 1)
+      matchedWithClick.splice(1, matchedWithClick.length - 1)
     }
 
     // 创建一个文档片段，用于构建新的节点结构
-    const fragment = document.createDocumentFragment();
-    const matchedRange = [Math.min(...matchedWithClick.map(item => item.pos[0])), Math.max(...matchedWithClick.map(item => item.pos[1]))]
+    const fragment = document.createDocumentFragment()
+    const matchedRange = [
+      Math.min(...matchedWithClick.map((item) => item.pos[0])),
+      Math.max(...matchedWithClick.map((item) => item.pos[1])),
+    ]
 
-    fragment.appendChild(document.createTextNode(rawText.slice(0, matchedRange[0])));
+    fragment.appendChild(
+      document.createTextNode(rawText.slice(0, matchedRange[0])),
+    )
 
-    let newNode = document.createElement('span');
+    let newNode = document.createElement('span')
     newNode.textContent = rawText.slice(matchedRange[0], matchedRange[1])
-    newNode.style.color = "red"
-    fragment.appendChild(newNode);
+    newNode.style.color = 'red'
+    newNode.style.backgroundColor = 'yellow'
+    newNode.style.fontWeight = 'bold'
+    fragment.appendChild(newNode)
 
-    fragment.appendChild(document.createTextNode(rawText.slice(matchedRange[1])));
+    fragment.appendChild(
+      document.createTextNode(rawText.slice(matchedRange[1])),
+    )
 
     // 清空原始元素并添加新的节点结构
     while (element.firstChild) {
-        element.removeChild(element.firstChild);
+      element.removeChild(element.firstChild)
     }
-    element.appendChild(fragment);
+    element.appendChild(fragment)
 
     if (!autoMode) {
-        alarm(matchedWithClick.map(entry => entry.world.pinyin.join("").toUpperCase()))
+      alarm(
+        matchedWithClick.map((entry) =>
+          entry.sensitiveWord.pinYinWithTone.join('').toUpperCase(),
+        ),
+      )
+    } else {
+      // 自动模式下输出汇总到控制台
+      matchedWithClick.forEach((entry) => {
+        const worldPinyinWithTone = withPinyin(entry.world).pinYinWithTone
+          .filter((token) => /[a-z]+/.test(token))
+          .join('')
+        const worldPinyinWithoutTone = withPinyin(entry.world).pinYinWithoutTone
+          .filter((token) => /[a-z]+/.test(token))
+          .join('')
+        console.log(
+          `🚨 ${entry.world}（${worldPinyinWithoutTone}->${worldPinyinWithTone}）：${entry.sensitiveWord.text}`,
+        )
+      })
     }
-}
 
-async function main() {
-    const sensitiveWords = await getAllSensitiveWords();
+    return findRes.length
+  }
 
-    const container = document.createElement('div');
-    container.id = CONTAINER_ID;
-    document.body.appendChild(container);
+  async function main() {
+    try {
+      console.log('🖋️ 言阅姬启动中...')
 
-    alert("言阅姬已上线")
-    getAllSusLeafNodesWIthText().forEach((ele) => {
-        if (autoMode) {
-            susTextClickHandler(ele, sensitiveWords, true)
+      const sensitiveWords = await getAllSensitiveWords()
+      console.log(`📚 加载了 ${sensitiveWords.length} 个敏感词`)
+
+      // 创建显示容器
+      let container = document.getElementById(CONTAINER_ID)
+      if (!container) {
+        container = document.createElement('div')
+        container.id = CONTAINER_ID
+        document.body.appendChild(container)
+      }
+
+      let susTextElements = getAllSusLeafNodesWithText()
+      console.log(`📄 找到 ${susTextElements.length} 个文本节点`)
+
+      let totalSensitiveWords = 0
+      susTextElements.forEach((ele) => {
+        const count = susTextClickHandler(ele, sensitiveWords, autoMode, true)
+        if (count) {
+          totalSensitiveWords += count
         }
 
-        ele.addEventListener("click", _ => susTextClickHandler(ele, sensitiveWords));
-    })
-}
+        // 为手动模式添加点击事件
+        if (!autoMode) {
+          ele.addEventListener('click', (_) =>
+            susTextClickHandler(ele, sensitiveWords, false, false),
+          )
+          ele.style.cursor = 'pointer'
+          ele.title = '点击检测敏感词'
+        }
+      })
 
-main().then()
+      const message = `🖋️ 言阅姬已上线！
+检测到 ${totalSensitiveWords} 处敏感词
+分布在 ${susTextElements.length} 个文本节点中
+模式: ${autoMode ? '自动检测' : '手动点击'}`
 
+      console.log(message)
+      alert(message)
 
-const styles = `
+      // 添加样式
+      addStyles()
+    } catch (error) {
+      console.error('🚨 言阅姬启动失败:', error)
+      alert('言阅姬启动失败，请查看控制台了解详情。')
+    }
+  }
+
+  function addStyles() {
+    // 检查是否已经添加过样式
+    if (document.getElementById(APP_ID + '-styles')) {
+      return
+    }
+
+    const styles = `
 #${CONTAINER_ID} {
     position: fixed;
     top: 20%;
     transform: translateX(-50%);
     left: 50%;
     font-size: 2em;
+    z-index: 999999;
+    pointer-events: none;
 }
         
 @keyframes ${APP_ID}-shrink {
@@ -251,28 +374,14 @@ const styles = `
 }
 `
 
-const styleSheet = document.createElement("style")
-styleSheet.textContent = styles
-document.head.appendChild(styleSheet)
+    const styleSheet = document.createElement('style')
+    styleSheet.id = APP_ID + '-styles'
+    styleSheet.textContent = styles
+    document.head.appendChild(styleSheet)
+  }
 
-// window.addEventListener('DOMContentLoaded', () => {
-//
-//     document.querySelectorAll('.charPosition').forEach(el => {
-//         let characters = el['innerText'].split('');
-//         el.innerHTML = '';
-//         characters.forEach(char => {
-//             let span = document.createElement('span');
-//             span.innerText = char;
-//             span.addEventListener('click', function () {
-//                 let position = 0;
-//                 let el = this;
-//                 while (el.previousSibling !== null) {
-//                     position++;
-//                     el = el.previousSibling;
-//                 }
-//                 console.log(this.innerHTML + ':' + position);
-//             });
-//             el.appendChild(span);
-//         });
-//     });
-// });
+  // 自执行
+  main().catch((error) => {
+    console.error('🚨 言阅姬执行失败:', error)
+  })
+})() // 闭合IIFE
