@@ -245,7 +245,7 @@ function generateHTML(bookmarklets) {
 </head>
 <body>
     <div class="container">
-        <h1>🖋️ 言阅姬 - YanYueji is watching you</h1>
+        <h1>🖋️ 言阅姬 - YanYueJi is watching you</h1>
 
         <p>Steam好评率98%，全球首款「寻找对话中敏感词」的游戏《ウーマンコミュニケーション/ 女性交流》通关后做的小玩具，既可以直接标红页面上的敏感词，也可以人工寻找敏感词并点击以标红</p>
         
@@ -356,6 +356,16 @@ try {
     const mainHtmlPath = path.join(distPath, 'bookmarks.html');
     fs.writeFileSync(mainHtmlPath, htmlContent);
     console.log(`🔗 快捷访问: ${mainHtmlPath}`);
+    
+    // 复制README到dist目录
+    const readmePath = path.join(__dirname, '../README.md');
+    const distReadmePath = path.join(distPath, 'README.md');
+    if (fs.existsSync(readmePath)) {
+        fs.copyFileSync(readmePath, distReadmePath);
+        console.log(`📝 README已复制到: ${distReadmePath}`);
+    } else {
+        console.log('⚠️  README.md文件未找到，跳过复制');
+    }
     
 } catch (error) {
     console.error('❌ 构建失败:', error.message);
