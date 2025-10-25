@@ -241,6 +241,28 @@ function generateHTML(bookmarklets) {
             color: #6c5700;
             line-height: 1.5;
         }
+        .browser-guide {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            border-left: 4px solid #6c757d;
+        }
+        .browser-guide h4 {
+            margin-top: 0;
+            color: #495057;
+        }
+        .browser-item {
+            margin-bottom: 12px;
+            padding: 8px 12px;
+            background: white;
+            border-radius: 4px;
+            border-left: 3px solid #6c757d;
+        }
+        .browser-name {
+            font-weight: bold;
+            color: #495057;
+        }
     </style>
 </head>
 <body>
@@ -251,10 +273,25 @@ function generateHTML(bookmarklets) {
         
         <div class="instructions">
             <h3>📋 使用说明</h3>
-            <div class="step">右键点击下方对应的书签链接</div>
-            <div class="step">选择"添加到书签"或"收藏链接"</div>
-            <div class="step">在需要检测的网页上点击书签即可使用</div>
-            <div class="step">自动版会立即高亮所有敏感词，手动版需要点击文字才会显示</div>
+            <div class="step">将下方的书签链接拖拽到浏览器书签栏</div>
+            <div class="step">在需要检测的网页上点击添加的书签即可使用</div>
+            <div class="step">自动版书签运行后会立即高亮所有敏感词，手动版书签运行后需要点击文字才会高亮</div>
+            
+            <div class="browser-guide">
+                <h4>🌐 各浏览器添加书签方法</h4>
+                <div class="browser-item">
+                    <span class="browser-name">Chrome/Edge:</span> 拖拽到书签栏，或 Ctrl+Shift+O → 添加新书签
+                </div>
+                <div class="browser-item">
+                    <span class="browser-name">Firefox:</span> 拖拽到书签工具栏，或 Ctrl+Shift+B → 添加书签
+                </div>
+                <div class="browser-item">
+                    <span class="browser-name">Safari:</span> 拖拽到收藏夹栏，或显示→显示收藏夹栏后拖拽
+                </div>
+                <div class="browser-item">
+                    <span class="browser-name">通用方法:</span> 右键链接→复制链接地址→手动创建书签并粘贴
+                </div>
+            </div>
         </div>
 
         <div class="known-issues">
@@ -319,7 +356,7 @@ ${bookmarklets.map(bookmarklet => `
             const bookmarkLinks = document.querySelectorAll('.bookmark-link');
             bookmarkLinks.forEach(link => {
                 link.addEventListener('click', function(e) {
-                    if (confirm('这是一个书签链接。\\n\\n请右键点击并选择"添加到书签"，而不是直接点击。\\n\\n是否继续执行？（仅用于测试）')) {
+                    if (confirm('这是一个书签链接！\\n\\n点击确认将在当前页面运行此脚本（仅用于测试效果）。\\n\\n正常使用方法：请将此链接拖拽到浏览器书签栏，然后在其他网站上点击该书签来使用功能。')) {
                         return true;
                     }
                     e.preventDefault();
